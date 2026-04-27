@@ -7,12 +7,14 @@
     'depends': [
         'base',
         'fleet',
-        'x_service_planning' 
+        'x_service_planning',
+        'x_spk'
     ],
     'data': [
         'security/ir.model.access.csv',
         'data/sequence.xml',
         'views/bak_views.xml',
+        'views/fleet_vehicle_views.xml'
     ],
     'installable': True,
     'application': False,

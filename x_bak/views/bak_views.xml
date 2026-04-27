@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <!-- ===================== -->
@@ -12,7 +13,12 @@
     <!-- ===================== -->
     <!-- MENU -->
     <!-- ===================== -->
-    <menuitem id="menu_bak" name="BAK" parent="x_service_planning.menu_service_root" action="action_bak" sequence="2"/>
+    <menuitem id="bak_menu_root" name="BAK" parent="fleet.menu_root" sequence="110"/>
+    <menuitem id="bak_menu_operations" name="Operations" parent="bak_menu_root" sequence="10"/>
+    <menuitem id="bak_menu_bak" name="BAK" action="action_bak" parent="bak_menu_operations" sequence="1"/>
+
+    <menuitem id="bak_menu_fleet" name="Fleet" parent="bak_menu_operations" sequence="2"/>
+    <menuitem id="bak_menu_vehicle" name="Vehicles" action="fleet.fleet_vehicle_action" parent="bak_menu_fleet" sequence="1"/>
 
     <!-- ===================== -->
     <!-- LIST VIEW -->
@@ -21,12 +27,12 @@
         <field name="name">bak.list</field>
         <field name="model">bak</field>
         <field name="arch" type="xml">
-            <list>
+            <list string="Berita Acara Kejadian">
                 <field name="name"/>
                 <field name="partner_id"/>
+                <field name="vehicle_model_id"/>
                 <field name="vehicle_id"/>
-                <field name="incident_date"/>
-                <field name="state"/>
+                <field name="state" widget="badge" decoration-success="state in ('submitted', 'done')"/>
             </list>
         </field>
     </record>
@@ -39,55 +45,60 @@
         <field name="model">bak</field>
         <field name="arch" type="xml">
             <form string="Berita Acara Kejadian">
-
-                <!-- HEADER BUTTON -->
                 <header>
                     <button name="action_submit" type="object" string="Submit" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_create_spk" type="object" string="Create SPK" class="btn-primary" invisible="state != 'submitted'"/>
 
-                    <button name="action_approve" type="object" string="Approve" class="btn-success" invisible="state != 'submitted'"/>
-
-                    <field name="state" widget="statusbar" options="{'clickable': '1'}"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,submitted,done"/>
                 </header>
 
                 <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
 
-                    <!-- INFORMASI UMUM -->
-                    <group col="2">
-                        <field name="name" readonly="1" required="1"/>
-                        <field name="partner_id"/>
-                        <field name="driver_name"/>
-                        <field name="address"/>
-                        <field name="phone"/>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="driver_name"/>
+                            <field name="address"/>
+                            <field name="phone"/>
+                            <field name="currency_id"/>
+                            <field name="cost" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                        </group>
+                        <group>
+                            <field name="vehicle_model_id"/>
+                            <field name="vehicle_id"/>
+                            <field name="year"/>
+                            <field name="last_odometer"/>
+                            <field name="ticket_number"/>
+                        </group>
                     </group>
 
-                    <!-- DATA KENDARAAN -->
-                    <group string="Informasi Kendaraan">
-                        <field name="vehicle_id"/>
-                        <field name="license_plate" readonly="1"/>
-                        <field name="year" readonly="1"/>
-                        <field name="last_odometer"/>
-                    </group>
-
-                    <!-- KEJADIAN -->
-                    <group string="Detail Kejadian">
-                        <field name="incident_date"/>
-                        <field name="location"/>
-                        <field name="chronology"/>
-                        <field name="damage"/>
-                    </group>
-
-                    <!-- BIAYA & DOKUMEN -->
-                    <group string="Biaya &amp; Dokumen">
-                        <field name="cost"/>
-                        <field name="ticket_number"/>
-                        <field name="attachment"/>
-                    </group>
-
-                    <!-- FOTO -->
-                    <group string="Foto Kejadian">
-                        <field name="image" widget="image" class="oe_avatar"/>
-                    </group>
-
+                    <notebook>
+                        <page string="Detail" name="detail">
+                            <field name="incident_line_ids" mode="list" string="Tanggal Kejadian">
+                                <list editable="bottom">
+                                    <field name="incident_date"/>
+                                    <field name="location"/>
+                                    <field name="chronology"/>
+                                </list>
+                            </field>
+                            <br/>
+                            <field name="damage_line_ids" mode="list" string="Bagian/Komponen yang rusak/hilang">
+                                <list editable="bottom">
+                                    <field name="damage"/>
+                                    <field name="attachment" filename="attachment_name" widget="binary"/>
+                                    <field name="attachment_name" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Notes" name="notes">
+                            <field name="notes" placeholder="Enter internal notes here..."/>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

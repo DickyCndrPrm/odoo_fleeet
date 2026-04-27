@@ -1,7 +1,6 @@
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
-
 class Bak(models.Model):
     _name = 'bak'
     _description = 'Berita Acara Kejadian'
@@ -22,35 +21,28 @@ class Bak(models.Model):
     # =====================
     currency_id = fields.Many2one(
         'res.currency',
+        required=True,
         default=lambda self: self.env.company.currency_id
     )
-    cost = fields.Monetary(string="Biaya Ditanggung", currency_field='currency_id')
+    cost = fields.Monetary(string="Biaya Ditanggung Pengemudi / Penyewa / OR", currency_field='currency_id')
 
     # =====================
     # VEHICLE
     # =====================
-    vehicle_id = fields.Many2one('fleet.vehicle', string="Vehicle", required=True)
-
-    license_plate = fields.Char(related='vehicle_id.license_plate', store=True)
-    year = fields.Selection(related='vehicle_id.model_year', store=True)
-
-    last_odometer = fields.Float(string="Last Odometer", required=True)
+    vehicle_id = fields.Many2one('fleet.vehicle', string="License Plate", required=True)
+    vehicle_model_id = fields.Many2one('fleet.vehicle.model', string="Vehicle", related='vehicle_id.model_id', readonly=True)
+    year = fields.Selection(string="Year", related='vehicle_id.model_year', readonly=True)
+    last_odometer = fields.Float(string="Last Odoometer", required=True)
 
     # =====================
     # INCIDENT
     # =====================
     ticket_number = fields.Char(string="Ticket Number")
 
-    incident_date = fields.Datetime(string="Tanggal Kejadian", required=True)
-    location = fields.Text(string="Lokasi Kejadian", required=True)
-    chronology = fields.Text(string="Detail Kronologi", required=True)
-    damage = fields.Text(string="Bagian Rusak/Hilang")
-
-    # =====================
-    # FILE
-    # =====================
-    attachment = fields.Binary(string="Attachment")
-    image = fields.Binary(string="Foto Kejadian")  # 🔥 WAJIB sesuai XML
+    incident_line_ids = fields.One2many('bak.incident.line', 'bak_id', string="Incident Lines")
+    damage_line_ids = fields.One2many('bak.damage.line', 'bak_id', string="Damage Lines")
+    
+    notes = fields.Html(string="Notes")
 
     # =====================
     # WORKFLOW
@@ -58,18 +50,18 @@ class Bak(models.Model):
     state = fields.Selection([
         ('draft', 'Draft'),
         ('submitted', 'Submitted'),
-        ('approved', 'Approved'),
         ('done', 'Done')
-    ], default='draft') # type: ignore
+    ], default='draft')
 
     # =====================
     # AUTO SEQUENCE
     # =====================
-    @api.model
-    def create(self, vals):
-        if vals.get('name', 'New') == 'New':
-            vals['name'] = self.env['ir.sequence'].next_by_code('bak.sequence') or 'New'
-        return super().create(vals)
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('name', 'New') == 'New':
+                vals['name'] = self.env['ir.sequence'].next_by_code('bak.sequence') or 'New'
+        return super().create(vals_list)
 
     # =====================
     # VALIDASI
@@ -87,6 +79,8 @@ class Bak(models.Model):
     def _onchange_vehicle(self):
         if self.vehicle_id:
             self.partner_id = self.vehicle_id.driver_id
+            if hasattr(self.vehicle_id, 'odometer'):
+                self.last_odometer = self.vehicle_id.odometer
 
     # =====================
     # BUTTON ACTION
@@ -94,5 +88,51 @@ class Bak(models.Model):
     def action_submit(self):
         self.state = 'submitted'
 
-    def action_approve(self):
-        self.state = 'approved'
+    def action_create_spk(self):
+        self.ensure_one()
+        action = self.env.ref("x_spk.fleet_spk_action", raise_if_not_found=False)
+        if not action:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Create SPK',
+                'res_model': 'fleet.spk',
+                'view_mode': 'form',
+                'target': 'current',
+                'context': {
+                    'default_vehicle_id': self.vehicle_id.id,
+                    'default_bak_id': self.name,
+                    'default_customer_id': self.partner_id.id,
+                }
+            }
+        
+        result = action.sudo().read()[0]
+        form_view = self.env.ref('x_spk.fleet_spk_form', raise_if_not_found=False)
+        if form_view:
+            result['views'] = [(form_view.id, 'form')]
+        result['context'] = {
+            'default_vehicle_id': self.vehicle_id.id,
+            'default_bak_id': self.name,
+            'default_customer_id': self.partner_id.id,
+        }
+        result['target'] = 'current'
+        return result
+
+
+class BakIncidentLine(models.Model):
+    _name = 'bak.incident.line'
+    _description = 'BAK Incident Line'
+
+    bak_id = fields.Many2one('bak', string="BAK Reference", required=True, ondelete='cascade')
+    incident_date = fields.Datetime(string="Tanggal Kejadian", required=True)
+    location = fields.Char(string="Lokasi Kejadian", required=True)
+    chronology = fields.Text(string="Detail Kronologi", required=True)
+
+
+class BakDamageLine(models.Model):
+    _name = 'bak.damage.line'
+    _description = 'BAK Damage Line'
+
+    bak_id = fields.Many2one('bak', string="BAK Reference", required=True, ondelete='cascade')
+    damage = fields.Char(string="Bagian/Komponen yang rusak/hilang", required=True)
+    attachment = fields.Binary(string="Attachment")
+    attachment_name = fields.Char(string="Attachment Name")
