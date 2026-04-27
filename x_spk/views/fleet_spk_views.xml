@@ -105,7 +105,7 @@
               <page string="Product Sparepart" name="sparepart" invisible="maintenance_type == 'accident'">
                 <field name="sparepart_line_ids">
                   <list editable="bottom">
-                    <field name="product_id" domain="[('type', '=', 'product')]"/>
+                    <field name="product_id" domain="[('type', '=', 'consu')]"/>
                     <field name="description"/>
                     <field name="analytic_account_id"/>
                     <field name="quantity"/>
@@ -126,7 +126,7 @@
               <page string="Product Service" name="service" invisible="maintenance_type == 'accident'">
                 <field name="service_line_ids">
                   <list editable="bottom">
-                    <field name="product_id"/>
+                    <field name="product_id" domain="[('type', '=', 'service')]"/>
                     <field name="quantity"/>
                     <field name="unit_price"/>
                     <field name="subtotal" readonly="1"/>
@@ -141,7 +141,7 @@
               <page string="Products On Risk" name="on_risk" invisible="maintenance_type != 'accident'">
                 <field name="on_risk_product_ids">
                   <list editable="bottom">
-                    <field name="product_id" domain="[('is_on_risk', '=', True), ('type', '=', 'product')]"/>
+                    <field name="product_id" domain="[('is_on_risk', '=', True)]"/>
                     <field name="quantity"/>
                     <field name="unit_price"/>
                     <field name="description"/>

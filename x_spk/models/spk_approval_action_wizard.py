@@ -32,7 +32,10 @@ class SPKApprovalActionWizard(models.TransientModel):
         if self.approval_id.spk_id != self.spk_id:
             raise ValidationError("Selected approval line does not belong to this SPK.")
 
-        self.approval_id.with_context(skip_approval_write_check=True).write(
+        # Explicitly validate actor before sudo writes (ACL for normal users is read-only).
+        self.approval_id._check_assigned_approver()
+
+        self.approval_id.sudo().with_context(skip_approval_write_check=True).write(
             {
                 "remarks": self.remarks,
                 "attachment_ids": [(6, 0, self.attachment_ids.ids)],

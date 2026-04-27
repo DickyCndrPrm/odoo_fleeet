@@ -3,7 +3,7 @@ from odoo import models, fields, api
 
 class SPKOnRiskProductLine(models.Model):
     _name = "spk.on.risk.product.line"
-    _description = "SPK Product On Risk Line (for Accident Category)"
+    _description = "SPK On Risk Product Line"
 
     spk_id = fields.Many2one(
         "fleet.spk",
@@ -12,9 +12,10 @@ class SPKOnRiskProductLine(models.Model):
         ondelete="cascade",
     )
     product_id = fields.Many2one(
-        "product.template",
+        "product.product",
         string="Product",
         required=True,
+        domain="[('is_on_risk', '=', True)]",
     )
     quantity = fields.Float(
         string="Quantity",
@@ -25,31 +26,23 @@ class SPKOnRiskProductLine(models.Model):
         string="Unit Price",
         required=True,
     )
-    description = fields.Text(
-        string="Damage Description",
-        required=True,
+    description = fields.Char(
+        string="Description",
     )
     subtotal = fields.Float(
         string="Subtotal",
         compute="_compute_subtotal",
+        store=True,
     )
 
-    @api.model
-    def _get_product_autofill_vals(self, product):
-        return {
-            "description": product.description_sale or product.display_name,
-            "unit_price": product.standard_price or product.list_price,
-        }
+    @api.depends("quantity", "unit_price")
+    def _compute_subtotal(self):
+        for line in self:
+            line.subtotal = line.quantity * line.unit_price
 
     @api.onchange("product_id")
     def _onchange_product_id(self):
         for line in self:
-            product = line.product_id
-            if not product:
-                continue
-            line.update(self._get_product_autofill_vals(product))
-
-    @api.depends("quantity", "unit_price")
-    def _compute_subtotal(self):
-        for record in self:
-            record.subtotal = record.quantity * record.unit_price
+            if line.product_id:
+                line.description = line.product_id.display_name
+                line.unit_price = getattr(line.product_id, "list_price", 0.0)
