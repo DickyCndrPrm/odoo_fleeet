@@ -1,0 +1,31 @@
+{
+    "name": "x_spk",
+    "version": "19.0.1.0.0",
+    "category": "Fleet",
+    "summary": "Fleet maintenance order module with approval workflow",
+    "description": "SPK fleet maintenance workflow module for Odoo 19.",
+    "author": "Odoo Developer",
+    "depends": [
+        "base",
+        "fleet",
+        "product",
+        "stock",
+        "purchase"
+    ],
+    "data": [
+        "security/ir.model.access.csv",
+        "data/spk_sequence.xml",
+        "data/spk_master_data.xml",
+        "views/product_template_views.xml",
+        "views/spk_master_data_views.xml",
+        "views/spk_approval_matrix_views.xml",
+        "views/fleet_spk_views.xml",
+        "views/fleet_vehicle_views.xml",
+        "views/spk_approval_action_wizard_views.xml",
+        "views/spk_tyre_aki_wizard_views.xml",
+        "views/spk_menus.xml",
+    ],
+    "installable": True,
+    "auto_install": False,
+    "license": "LGPL-3",
+}
