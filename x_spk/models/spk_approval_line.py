@@ -49,29 +49,34 @@ class SPKApprovalLine(models.Model):
         string="Approval Cycle",
         default=1,
         required=True,
+        readonly=True,
+        help="Deprecated field - kept for backward compatibility"
     )
     can_current_user_delegate = fields.Boolean(
         string="Can Current User Delegate",
         compute="_compute_can_current_user_delegate",
     )
 
-    # Backward-compatible aliases
+    # Backward-compatible aliases (deprecated)
     approval_status = fields.Selection(
         related="state",
         string="Approval Status (Legacy)",
         store=True,
         readonly=True,
+        help="Deprecated - use 'state' instead"
     )
     approval_date = fields.Datetime(
         related="action_date",
-        string="Approval Date",
+        string="Approval Date (Legacy)",
         store=True,
         readonly=True,
+        help="Deprecated - use 'action_date' instead"
     )
     comments = fields.Text(
         related="remarks",
-        string="Comments",
+        string="Comments (Legacy)",
         readonly=True,
+        help="Deprecated - use 'remarks' instead"
     )
 
     @api.depends("state", "approver_id")
@@ -151,7 +156,7 @@ class SPKApprovalLine(models.Model):
                     % current_step.approver_id.display_name
                 )
 
-            approval.with_context(skip_approval_write_check=True).write(
+            approval.sudo().with_context(skip_approval_write_check=True).write(
                 {
                     "state": "approved",
                     "action_date": fields.Datetime.now(),
@@ -177,7 +182,7 @@ class SPKApprovalLine(models.Model):
 
             approval._check_assigned_approver()
 
-            approval.with_context(skip_approval_write_check=True).write(
+            approval.sudo().with_context(skip_approval_write_check=True).write(
                 {
                     "state": "rejected",
                     "action_date": fields.Datetime.now(),
@@ -196,7 +201,7 @@ class SPKApprovalLine(models.Model):
                 )
             )
             if upper_pending:
-                upper_pending.with_context(skip_approval_write_check=True).write(
+                upper_pending.sudo().with_context(skip_approval_write_check=True).write(
                     {
                         "state": "cancelled",
                         "action_date": fields.Datetime.now(),

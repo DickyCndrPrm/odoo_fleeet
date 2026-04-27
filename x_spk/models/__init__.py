@@ -1,6 +1,7 @@
 from . import product_template
 from . import fleet_vehicle
 from . import spk_master_data
+from . import res_groups_approval_role
 from . import fleet_spk
 from . import spk_sparepart_line
 from . import spk_service_line

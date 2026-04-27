@@ -537,7 +537,11 @@ class FleetSPK(models.Model):
         self.state = "closed"
 
     def _generate_approval_lines(self):
-        """Auto-generate approval lines from active matrix based on SPK context."""
+        """Auto-generate approval lines from active matrix based on SPK context.
+        
+        Tries to match specific matrix (category + maintenance_type + amount range).
+        Falls back to default rule if no specific match found.
+        """
         self.ensure_one()
 
         # Cancel previous pending approvals if record is re-submitted
@@ -550,9 +554,11 @@ class FleetSPK(models.Model):
                 }
             )
 
+        # First, try to find specific matrix matching category, type, and amount
         matrix = self.env["spk.approval.matrix"].search(
             [
                 ("active", "=", True),
+                ("is_default", "=", False),
                 ("category", "=", self.category),
                 ("maintenance_type_id", "=", self.maintenance_type_id.id),
                 ("amount_from", "<=", self.total_amount),
@@ -562,20 +568,39 @@ class FleetSPK(models.Model):
             limit=1,
         )
 
+        # If no specific match, try default rule for this category
+        if not matrix:
+            matrix = self.env["spk.approval.matrix"].search(
+                [
+                    ("active", "=", True),
+                    ("is_default", "=", True),
+                    ("category", "=", self.category),
+                ],
+                limit=1,
+            )
+
         approval_vals = []
         next_cycle = (max(self.approval_line_ids.mapped("approval_cycle")) if self.approval_line_ids else 0) + 1
+        
         if matrix:
             for line in matrix.approval_line_ids.sorted(key=lambda l: l.sequence):
-                approver = line.approver_role.user_ids.filtered(
-                    lambda user: user.active and not user.share and user.login != "admin"
-                )[:1]
-                if not approver:
+                # Get approver from role mapping
+                approver = line.approval_role_id.user_id if line.approval_role_id else None
+                
+                if not approver or not approver.active or approver.share or approver.login == "admin":
+                    # Fallback to first active internal user if role mapping not available
                     approver = self._get_default_approver_user()
+                
                 if not approver:
                     raise ValidationError(
-                        "No active approver found for matrix role '%s' and no fallback user is available."
-                        % line.approver_role.display_name
+                        "No active approver found for role '%s' and no fallback user is available."
+                        % (line.approval_role_id.display_name if line.approval_role_id else "Unknown")
                     )
+                
+                # Derive approval role from sequence for backward compatibility
+                role_map = {1: "l1", 2: "l2", 3: "l3"}
+                approval_role = role_map.get(line.approval_role_id.sequence, "l1")
+                
                 approval_vals.append(
                     (
                         0,
@@ -583,7 +608,7 @@ class FleetSPK(models.Model):
                         {
                             "sequence": line.sequence,
                             "approver_id": approver.id,
-                            "role": line.approval_role,
+                            "role": approval_role,
                             "state": "pending",
                             "approval_cycle": next_cycle,
                         },
@@ -591,6 +616,7 @@ class FleetSPK(models.Model):
                 )
 
         if not approval_vals:
+            # Fallback to current user if no matrix found
             default_approver = self.env.user
             if not default_approver.active or default_approver.share or default_approver.login == "admin":
                 default_approver = self.env["res.users"].search(
@@ -763,7 +789,7 @@ class FleetSPK(models.Model):
                         0,
                         {
                             "product_id": product_variant.id,
-                            "quantity": sparepart_line.quantity,
+                            "product_uom_qty": sparepart_line.quantity,
                             "product_uom": product.uom_id.id,
                         },
                     )
@@ -773,13 +799,13 @@ class FleetSPK(models.Model):
                 return  # No items to deliver
 
             # Create draft stock picking
-            picking = self.env["stock.picking"].create(
+            partner = record.vehicle_id.driver_id if hasattr(record.vehicle_id, "driver_id") else False
+            picking = self.env["stock.picking"].sudo().create(
                 {
                     "picking_type_id": picking_type.id,
-                    "partner_id": record.vehicle_id.owner_id.id,
+                    "partner_id": partner.id if partner else False,
                     "origin": record.name,
-                    "move_ids_without_package": picking_lines,
-                    "state": "draft",
+                    "move_ids": picking_lines,
                 }
             )
             
