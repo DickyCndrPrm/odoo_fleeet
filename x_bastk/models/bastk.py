@@ -98,6 +98,12 @@ class Bastk(models.Model):
         else:
             self.asset_number = self.license_plate = self.unit_type = self.color = self.model_year = self.vin_number = self.engine_number = ''
 
+    @api.constrains('call_number')
+    def _check_call_number(self):
+        for rec in self:
+            if rec.call_number and not rec.call_number.isdigit():
+                raise ValidationError("Nomor telepon harus berupa angka.")
+            
     @api.model_create_multi
     def create(self, vals_list):
         """Override create untuk handle sequence."""
