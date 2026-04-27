@@ -21,9 +21,9 @@
     <!-- ===================== -->
     <menuitem id="menu_service_planning"
               name="Service Planning"
-              parent="menu_service_root"
+              parent="fleet.menu_root"
               action="action_service_planning"
-              sequence="1"/>
+              sequence="20"/>
 
     <!-- ===================== -->
     <!-- LIST VIEW (ODDO 19) -->
@@ -33,11 +33,8 @@
         <field name="model">service.planning</field>
         <field name="arch" type="xml">
             <list>
+                <field name="sequence" widget="handle"/>
                 <field name="name"/>
-                <field name="vehicle_id"/>
-                <field name="service_part"/>
-                <field name="kilometer"/>
-                <field name="interval"/>
             </list>
         </field>
     </record>
@@ -50,39 +47,42 @@
         <field name="model">service.planning</field>
         <field name="arch" type="xml">
             <form>
-
-            <header>
-                <button name="action_create_spk"
-                        type="object"
-                        string="Create SPK"
-                        class="btn-primary"/>
-            </header>
+                <!-- <header>
+                    <button name="action_create_spk"
+                            type="object"
+                            string="Create SPK"
+                            class="btn-primary"/>
+                </header> -->
                 <sheet>
-
-                    <!-- INFORMASI UNIT -->
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
                     <group>
-                        <field name="name" readonly="1"/>
-                        <field name="vehicle_id"/>
-                        <field name="asset_number" readonly="1"/>
-                        <field name="engine_number" readonly="1"/>
-                        <field name="color" readonly="1"/>
-                        <field name="license_plate" readonly="1"/>
-                        <field name="vin_number" readonly="1"/>
+                        <group>
+                            <field name="vehicle_id"/>
+                            <field name="asset_number"/>
+                            <field name="model_year"/>
+                        </group>
+                        <group>
+                            <field name="license_plate"/>
+                            <field name="vin_number"/>
+                            <field name="engine_number"/>
+                        </group>
                     </group>
 
-                    <!-- SERVICE -->
-                    <group>
-                        <field name="service_part"/>
-                        <field name="kilometer"/>
-                        <field name="interval"/>
-                    </group>
-
-                    <!-- TAMBAHAN -->
-                    <group>
-                        <field name="brand_recommendation"/>
-                        <field name="remarks"/>
-                    </group>
-
+                    
+                        <field name="line_ids" mode="list,form" nolabel="1" limit="40" pager="true">
+                            <list editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="service_part"/>
+                                <field name="kilometer"/>
+                                <field name="interval"/>
+                                <field name="brand_recommendation"/>
+                                <field name="remarks"/>
+                            </list>
+                        </field>
                 </sheet>
             </form>
         </field>
