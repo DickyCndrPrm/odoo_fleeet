@@ -12,11 +12,7 @@
     <!-- ===================== -->
     <!-- MENU -->
     <!-- ===================== -->
-    <menuitem id="menu_bak"
-              name="BAK"
-              parent="addons_service_planning.menu_service_root"
-              action="action_bak"
-              sequence="2"/>
+    <menuitem id="menu_bak" name="BAK" parent="x_service_planning.menu_service_root" action="action_bak" sequence="2"/>
 
     <!-- ===================== -->
     <!-- LIST VIEW -->
@@ -46,17 +42,9 @@
 
                 <!-- HEADER BUTTON -->
                 <header>
-                    <button name="action_submit"
-                            type="object"
-                            string="Submit"
-                            class="btn-primary"
-                            invisible="state != 'draft'"/>
+                    <button name="action_submit" type="object" string="Submit" class="btn-primary" invisible="state != 'draft'"/>
 
-                    <button name="action_approve"
-                            type="object"
-                            string="Approve"
-                            class="btn-success"
-                            invisible="state != 'submitted'"/>
+                    <button name="action_approve" type="object" string="Approve" class="btn-success" invisible="state != 'submitted'"/>
 
                     <field name="state" widget="statusbar" options="{'clickable': '1'}"/>
                 </header>

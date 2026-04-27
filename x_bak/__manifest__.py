@@ -7,7 +7,7 @@
     'depends': [
         'base',
         'fleet',
-        'addons_service_planning'  # 🔥 biar bisa numpang menu
+        'x_service_planning' 
     ],
     'data': [
         'security/ir.model.access.csv',
