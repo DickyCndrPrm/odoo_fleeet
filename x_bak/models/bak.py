@@ -60,7 +60,7 @@ class Bak(models.Model):
         ('submitted', 'Submitted'),
         ('approved', 'Approved'),
         ('done', 'Done')
-    ], default='draft')
+    ], default='draft') # type: ignore
 
     # =====================
     # AUTO SEQUENCE

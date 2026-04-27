@@ -14,13 +14,10 @@
 
     <menuitem id="spk_menu_vehicle" name="Vehicles" action="fleet.fleet_vehicle_action" parent="spk_menu_fleet" sequence="1"/>
 
-    <!-- Configuration Menu -->
-    <menuitem id="spk_menu_configuration" name="Configuration" parent="fleet.fleet_configuration" sequence="100"/>
+    <!-- SPK Configuration Menu -->
+    <menuitem id="spk_menu_master" name="SPK" parent="fleet.fleet_configuration" sequence="100"/>
 
-    <menuitem id="spk_menu_approval_matrix" name="Approval Matrix" action="spk_approval_matrix_action" parent="spk_menu_configuration" sequence="1"/>
-
-    <!-- SPK Configuration Section -->
-    <menuitem id="spk_menu_master" name="SPK" parent="spk_menu_configuration" sequence="2"/>
+    <menuitem id="spk_menu_approval_matrix" name="Approval Matrix" action="spk_approval_matrix_action" parent="spk_menu_master" sequence="100"/>
 
     <menuitem id="spk_menu_product_template" name="Product Template" action="product.product_template_action" parent="spk_menu_master" sequence="1"/>
     <menuitem id="spk_menu_execution_type" name="Execution Type" action="spk_execution_type_action" parent="spk_menu_master" sequence="2"/>
