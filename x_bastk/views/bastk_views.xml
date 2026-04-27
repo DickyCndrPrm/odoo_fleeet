@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_bastk_list" model="ir.ui.view">
+        <field name="name">bastk.bastk.list</field>
+        <field name="model">bastk.bastk</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="vehicle_id"/>
+                <field name="asset_number"/>
+                <field name="license_plate"/>
+                <field name="start_date"/>
+                <field name="end_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bastk_form" model="ir.ui.view">
+        <field name="name">bastk.bastk.form</field>
+        <field name="model">bastk.bastk</field>
+        <field name="arch" type="xml">
+            <form string="BASTK">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="bastk_type_id" options="{'no_create': True}"/>
+                            <field name="start_date"/>
+                            <field name="end_date"/>
+                            <field name="partner_id"/>
+                            <field name="pic_partner"/>
+                            <field name="call_number"/>
+                            <field name="address"/>
+                            <field name="driver"/>
+                        </group>
+                        <group>
+                            <field name="vehicle_id"/>
+                            <field name="asset_number"/>
+                            <field name="license_plate"/>
+                            <field name="unit_type"/>
+                            <field name="color"/>
+                            <field name="model_year"/>
+                            <field name="vin_number"/>
+                            <field name="engine_number"/>
+                            <field name="description" placeholder="Description..."/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page name="keluar" string="Keluar">
+                            <field name="inspection_line_keluar_ids" mode="list,form" context="{'default_type': 'keluar'}" nolabel="1" limit="40" pager="true">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="checklist_item_id"/>
+                                    <field name="is_baik"/>
+                                    <field name="is_tidak_ada"/>
+                                    <field name="is_rusak"/>
+                                    <field name="is_hilang"/>
+                                    <field name="remarks"/>
+                                </list>
+                                <form>
+                                    <group>
+                                        <field name="checklist_item_id"/>
+                                        <field name="is_baik"/>
+                                        <field name="is_tidak_ada"/>
+                                        <field name="is_rusak"/>
+                                        <field name="is_hilang"/>
+                                        <field name="remarks"/>
+                                    </group>
+                                </form>
+                            </field>
+                            <group string="Tanda Tangan &amp; Lampiran">
+                                <group>
+                                    <field name="customer_sign" widget="signature" class="oe_left"/>
+                                </group>
+                                <group>
+                                    <field name="cakrawala_sign" widget="signature" class="oe_left"/>
+                                </group>
+                            </group>
+                            <group>
+                                <field name="attachment_ids" widget="many2many_binary"/>
+                            </group>
+                        </page>
+                        <page name="masuk" string="Masuk">
+                            <field name="inspection_line_masuk_ids" mode="list,form" context="{'default_type': 'masuk'}" nolabel="1" limit="40" pager="true">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="checklist_item_id"/>
+                                    <field name="is_baik"/>
+                                    <field name="is_tidak_ada"/>
+                                    <field name="is_rusak"/>
+                                    <field name="is_hilang"/>
+                                    <field name="remarks"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bastk" model="ir.actions.act_window">
+        <field name="name">BASTK Documents</field>
+        <field name="res_model">bastk.bastk</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Buat BASTK baru untuk mencatat serah terima kendaraan.
+            </p>
+        </field>
+    </record>
+</odoo>

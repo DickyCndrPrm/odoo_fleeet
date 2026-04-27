@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_bastk_root" name="BASTK" parent="fleet.menu_root" sequence="10"/>
+    <menuitem id="menu_bastk_document" name="BASTK Documents" parent="menu_bastk_root" action="action_bastk" sequence="10"/>
+
+    <menuitem id="menu_bastk_configuration" name="BASTK" parent="fleet.fleet_configuration" sequence="20"/>
+    <menuitem id="menu_bastk_type" name="BASTK Types" parent="menu_bastk_configuration" action="action_bastk_type" sequence="10"/>
+    <menuitem id="menu_checklist_item" name="BASTK Description Master Data" parent="menu_bastk_configuration" action="action_checklist_item" sequence="20"/>
+</odoo>

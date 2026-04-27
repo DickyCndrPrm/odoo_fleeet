@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="bastk_type_long_term" model="bastk.type">
+            <field name="name">Long Term Rent</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="bastk_type_short_term" model="bastk.type">
+            <field name="name">Short Term Rent</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="bastk_type_inventaris" model="bastk.type">
+            <field name="name">Inventaris</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="bastk_type_replacement" model="bastk.type">
+            <field name="name">Replacement Car</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="bastk_type_workshop" model="bastk.type">
+            <field name="name">Workshop</field>
+            <field name="sequence">50</field>
+        </record>
+        <record id="bastk_type_expedition" model="bastk.type">
+            <field name="name">Expedition</field>
+            <field name="sequence">60</field>
+        </record>
+        <record id="bastk_type_new_car" model="bastk.type">
+            <field name="name">New Car (From Dealer)</field>
+            <field name="sequence">70</field>
+        </record>
+    </data>
+</odoo>

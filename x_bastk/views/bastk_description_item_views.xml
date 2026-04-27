@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_checklist_item_list" model="ir.ui.view">
+        <field name="name">bastk.checklist.item.list</field>
+        <field name="model">bastk.checklist.item</field>
+        <field name="arch" type="xml">
+            <list editable="top">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="applies_on"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_checklist_item_form" model="ir.ui.view">
+        <field name="name">bastk.checklist.item.form</field>
+        <field name="model">bastk.checklist.item</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="applies_on"/>
+                        <field name="sequence" invisible="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_checklist_item" model="ir.actions.act_window">
+        <field name="name">BASTK Description Master Data</field>
+        <field name="res_model">bastk.checklist.item</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

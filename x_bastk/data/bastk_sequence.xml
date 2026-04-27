@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="seq_bastk" model="ir.sequence">
+            <field name="name">BASTK Sequence</field>
+            <field name="code">bastk.sequence</field>
+            <field name="prefix">BASTK/%(month)s/%(year)s/</field>
+            <field name="padding">4</field>
+        </record>
+    </data>
+</odoo>
