@@ -8,7 +8,6 @@ class SPKApprovalMatrix(models.Model):
 
     name = fields.Char(
         string="Name",
-        required=True,
         compute="_compute_name",
         store=True,
         readonly=True,
