@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class SPKSparepartLine(models.Model):
@@ -45,6 +46,11 @@ class SPKSparepartLine(models.Model):
     analytic_account_id = fields.Many2one('account.analytic.account', string='Analytic Account')
     product_uom_id = fields.Many2one('uom.uom', string='Unit of Measure')
     tax_ids = fields.Many2many('account.tax', string='Taxes')
+
+    def _check_parent_editable(self):
+        for line in self:
+            if line.spk_id and line.spk_id.state in ('approved', 'done', 'closed'):
+                raise ValidationError('Approved SPK records cannot be edited anymore.')
 
     @api.depends("quantity", "unit_price", "tax_ids")
     def _compute_subtotal(self):
@@ -135,6 +141,12 @@ class SPKSparepartLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
+            spk_id = vals.get('spk_id')
+            if spk_id:
+                spk = self.env['fleet.spk'].browse(spk_id)
+                if spk.state in ('approved', 'done', 'closed'):
+                    raise ValidationError('Approved SPK records cannot be edited anymore.')
+        for vals in vals_list:
             product_id = vals.get("product_id")
             if not product_id:
                 continue
@@ -149,6 +161,7 @@ class SPKSparepartLine(models.Model):
         return records
 
     def write(self, vals):
+        self._check_parent_editable()
         if "product_id" in vals and vals.get("product_id"):
             product = self.env["product.template"].browse(vals["product_id"])
             autofill_vals = self._get_product_autofill_vals(product)
@@ -161,6 +174,7 @@ class SPKSparepartLine(models.Model):
         return result
 
     def unlink(self):
+        self._check_parent_editable()
         tyre_details = self.env["spk.tyre.line"].search([
             ("product_line_id", "in", self.ids),
         ])

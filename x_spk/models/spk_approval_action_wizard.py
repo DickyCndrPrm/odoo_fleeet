@@ -1,4 +1,4 @@
-from odoo import models, fields
+from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
 
@@ -15,26 +15,42 @@ class SPKApprovalActionWizard(models.TransientModel):
         required=True,
         default="approve",
     )
-    spk_id = fields.Many2one("fleet.spk", string="SPK", required=True)
-    approval_id = fields.Many2one("spk.approval.line", string="Approval Line", required=True)
-    remarks = fields.Text(string="Notes / Remarks")
-    attachment_ids = fields.Many2many("ir.attachment", string="PDF Attachments")
+    spk_id = fields.Many2one(
+        "fleet.spk",
+        string="SPK",
+        required=True,
+        readonly=True,
+    )
+    approval_id = fields.Many2one(
+        "spk.approval.line",
+        string="Approval Line",
+        required=True,
+        readonly=True,
+    )
+    remarks = fields.Text(string="Remarks")
+    attachment_ids = fields.Many2many(
+        "ir.attachment",
+        string="PDF Attachments",
+    )
 
     def action_confirm(self):
         self.ensure_one()
 
+        # Validate attachments are PDF only
         invalid_attachments = self.attachment_ids.filtered(
             lambda attachment: attachment.mimetype and attachment.mimetype != "application/pdf"
         )
         if invalid_attachments:
-            raise ValidationError("Only PDF files are allowed as attachments.")
+            raise ValidationError("Only PDF attachments are allowed.")
 
+        # Verify approval belongs to SPK
         if self.approval_id.spk_id != self.spk_id:
-            raise ValidationError("Selected approval line does not belong to this SPK.")
+            raise ValidationError("Approval line does not belong to this SPK.")
 
-        # Explicitly validate actor before sudo writes (ACL for normal users is read-only).
+        # Validate approver
         self.approval_id._check_assigned_approver()
 
+        # Update approval with remarks and attachments
         self.approval_id.sudo().with_context(skip_approval_write_check=True).write(
             {
                 "remarks": self.remarks,
@@ -42,6 +58,7 @@ class SPKApprovalActionWizard(models.TransientModel):
             }
         )
 
+        # Process approval action
         if self.action_type == "approve":
             self.approval_id.action_approve()
         else:

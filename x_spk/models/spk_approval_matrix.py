@@ -2,25 +2,17 @@ from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
 
-class SPKApprovalMatrix(models.Model):
-    _name = "spk.approval.matrix"
-    _description = "SPK Approval Matrix Configuration"
+class SPKApprovalConfigMaster(models.Model):
+    """SPK Approval Configuration Matrix"""
+    _name = "spk.approval.config.master"
+    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _description = "SPK Approval Configuration"
 
     name = fields.Char(
         string="Name",
+        copy=False,
         compute="_compute_name",
         store=True,
-        readonly=True,
-        help="Auto-generated descriptive name\n[Default] format for default rules\n[Category - Amount Range - Type] for specific rules"
-    )
-    active = fields.Boolean(
-        string="Active",
-        default=True,
-    )
-    is_default = fields.Boolean(
-        string="Is Default Rule",
-        default=False,
-        help="Mark this as the default approval rule. Used when no specific rule matches."
     )
     category = fields.Selection(
         [
@@ -35,82 +27,91 @@ class SPKApprovalMatrix(models.Model):
         string="Maintenance Type",
         required=True,
         ondelete="restrict",
-        default=lambda self: self.env["spk.maintenance.type"].search(
-            [("code", "=", "schedule")], limit=1
-        ),
-    )
-    maintenance_type = fields.Char(
-        string="Maintenance Type Code",
-        related="maintenance_type_id.code",
-        store=True,
-        readonly=True,
     )
     amount_from = fields.Float(
-        string="Amount From",
+        string="Starting Amount",
         required=True,
+        default=0,
     )
-    amount_to = fields.Float(
-        string="Amount To",
+    sequence = fields.Integer(
+        string="Sequence",
+        default=1,
+    )
+    approver_id = fields.Many2one(
+        "res.users",
+        string="Approver",
         required=True,
+        domain="[('share', '=', False), ('active','=',True)]",
     )
-    approval_line_ids = fields.One2many(
-        "spk.approval.matrix.line",
-        "matrix_id",
-        string="Approval Sequence",
+    delegation_id = fields.Many2one(
+        "res.users",
+        string="Delegation",
+        domain="[('share', '=', False), ('active','=',True)]",
+        help="Optional delegation if primary approver is unavailable",
     )
+    state = fields.Selection(
+        [("draft", "Draft"), ("active", "Active")],
+        default="draft",
+        string="Status",
+    )
+    company_id = fields.Many2one(
+        "res.company",
+        "Company",
+        required=True,
+        default=lambda self: self.env.company.id,
+        index=True,
+    )
+    active = fields.Boolean("Active", default=True)
 
     _sql_constraints = [
         (
-            "check_amount_range",
-            "CHECK(amount_from <= amount_to)",
-            "Amount From must be less than or equal to Amount To"
+            "unique_approval_config",
+            "UNIQUE(category, maintenance_type_id, amount_from, company_id, active)",
+            "Approval configuration must be unique per category, maintenance type, and amount range",
         ),
     ]
 
-    @api.depends("is_default", "category", "maintenance_type_id", "amount_from", "amount_to")
+    @api.depends("category", "maintenance_type_id", "amount_from", "sequence")
     def _compute_name(self):
-        """Auto-generate descriptive name for approval matrix"""
-        def format_currency(amount):
-            """Format amount as IDR currency"""
-            return f"Rp {amount:,.0f}".replace(",", ".")
-
+        """Auto-generate descriptive name"""
         for record in self:
-            if record.is_default:
-                category_label = dict(record._fields['category'].selection).get(record.category, record.category)
-                record.name = f"{category_label} (Default)"
-            else:
-                category_label = dict(record._fields['category'].selection).get(record.category, record.category)
-                amount_from = format_currency(record.amount_from)
-                amount_to = format_currency(record.amount_to)
-                mt_name = record.maintenance_type_id.name if record.maintenance_type_id else "N/A"
-                record.name = f"{category_label} - {amount_from} s/d {amount_to} - {mt_name}"
+            # Handle missing dependencies gracefully
+            if not record.category or not record.maintenance_type_id or record.amount_from is None:
+                record.name = "Approval Configuration"
+                continue
+            
+            category_label = dict(
+                record._fields["category"].selection
+            ).get(record.category, record.category)
+            mt_name = record.maintenance_type_id.name if record.maintenance_type_id else "N/A"
+            record.name = f"{category_label} - {mt_name} - Rp {record.amount_from:,.0f}+".replace(
+                ",", "."
+            )
 
-    @api.constrains("is_default", "category", "active")
-    def _check_single_default_per_category(self):
-        """Ensure only one default active rule per category"""
+    def button_draft(self):
         for record in self:
-            if record.is_default and record.active:
-                duplicates = self.search([
-                    ("id", "!=", record.id),
-                    ("category", "=", record.category),
-                    ("is_default", "=", True),
-                    ("active", "=", True),
-                ])
-                if duplicates:
-                    raise ValidationError(
-                        f"There is already a default approval rule for '{record.category}' category. "
-                        "Only one active default rule allowed per category."
-                    )
+            if record.state != "active":
+                continue
+            record.write({"state": "draft"})
+        return True
+
+    def button_confirm(self):
+        for record in self:
+            if record.state != "draft":
+                continue
+            record.write({"state": "active"})
+        return True
 
 
-class SPKApprovalMatrixLine(models.Model):
-    _name = "spk.approval.matrix.line"
-    _description = "SPK Approval Matrix Line"
+class SPKApprovalMatrix(models.Model):
+    """SPK Approval Matrix - tracks approval chain per SPK document"""
+    _name = "spk.approval.matrix"
+    _description = "SPK Approval Matrix"
     _order = "sequence asc"
 
-    matrix_id = fields.Many2one(
-        "spk.approval.matrix",
-        string="Approval Matrix",
+    spk_id = fields.Many2one(
+        "fleet.spk",
+        string="SPK",
         required=True,
         ondelete="cascade",
     )
@@ -118,46 +119,42 @@ class SPKApprovalMatrixLine(models.Model):
         string="Sequence",
         default=1,
     )
-    approval_role_id = fields.Many2one(
-        "res.groups.approval.role",
-        string="Approval Role",
+    approver_id = fields.Many2one(
+        "res.users",
+        string="Approver",
         required=True,
-        ondelete="restrict",
-        help="Select the approval role for this sequence level"
     )
-    # Deprecated fields kept for backward compatibility
-    approver_role = fields.Many2one(
-        "res.groups",
-        string="Approver Role (Deprecated)",
+    delegation_id = fields.Many2one(
+        "res.users",
+        string="Delegation",
+        help="Optional delegation approver",
+    )
+    actual_approver_id = fields.Many2one(
+        "res.users",
+        string="Actual Approver",
         readonly=True,
-        help="Deprecated - use approval_role_id instead"
+        help="User who performed approval",
     )
-    approval_role = fields.Selection(
+    reject_by_id = fields.Many2one(
+        "res.users",
+        string="Rejected By",
+        readonly=True,
+    )
+    state = fields.Selection(
         [
-            ("l1", "Level 1 (Manager)"),
-            ("l2", "Level 2 (Senior Manager)"),
-            ("l3", "Level 3 (Director)"),
+            ("waiting_approval", "Waiting Approval"),
+            ("approved", "Approved"),
+            ("rejected", "Rejected"),
         ],
-        string="Approval Role (Deprecated)",
-        readonly=True,
-        help="Deprecated - derived from approval_role_id.sequence"
+        string="Status",
+        required=True,
+        default="waiting_approval",
     )
-    is_final_approver = fields.Boolean(
-        string="Final Approver (Deprecated)",
-        default=False,
+    date_approved = fields.Datetime(
+        string="Date Approved",
         readonly=True,
-        help="Deprecated - kept for backward compatibility"
     )
-
-    @api.onchange("approval_role_id")
-    def _onchange_approval_role_id(self):
-        """Auto-populate approval_role from the selected role's sequence for backward compatibility"""
-        if self.approval_role_id:
-            # Map sequence to approval_role levels (1=l1, 2=l2, 3=l3)
-            sequence = self.approval_role_id.sequence
-            if sequence == 1:
-                self.approval_role = "l1"
-            elif sequence == 2:
-                self.approval_role = "l2"
-            elif sequence >= 3:
-                self.approval_role = "l3"
+    date_rejected = fields.Datetime(
+        string="Date Rejected",
+        readonly=True,
+    )

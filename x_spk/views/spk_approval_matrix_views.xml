@@ -1,111 +1,116 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
   <data>
-    <record id="spk_approval_matrix_tree" model="ir.ui.view">
-      <field name="name">spk.approval.matrix.tree</field>
-      <field name="model">spk.approval.matrix</field>
+    <!-- SPK Approval Configuration Master Views -->
+
+    <record id="spk_approval_config_master_tree" model="ir.ui.view">
+      <field name="name">spk.approval.config.master.tree</field>
+      <field name="model">spk.approval.config.master</field>
       <field name="arch" type="xml">
         <list>
           <field name="name"/>
-          <field name="is_default"/>
           <field name="category"/>
           <field name="maintenance_type_id"/>
           <field name="amount_from"/>
-          <field name="amount_to"/>
+          <field name="approver_id"/>
+          <field name="state"/>
           <field name="active"/>
         </list>
       </field>
     </record>
 
-    <record id="spk_approval_matrix_form" model="ir.ui.view">
-      <field name="name">spk.approval.matrix.form</field>
-      <field name="model">spk.approval.matrix</field>
+    <record id="spk_approval_config_master_form" model="ir.ui.view">
+      <field name="name">spk.approval.config.master.form</field>
+      <field name="model">spk.approval.config.master</field>
       <field name="arch" type="xml">
         <form>
+          <header>
+            <button name="button_draft" string="Reset to Draft" type="object" invisible="state != 'active'"/>
+            <button name="button_confirm" string="Activate" type="object" invisible="state != 'draft'" class="btn-primary"/>
+            <field name="state" widget="statusbar" statusbar_visible="draft,active"/>
+          </header>
           <sheet>
             <div class="oe_title">
               <h1>
                 <field name="name" readonly="1"/>
               </h1>
-              <div class="oe_edit_only" invisible="not is_default">
-                <span class="badge badge-info">DEFAULT RULE</span>
-              </div>
             </div>
 
             <group>
               <group>
-                <field name="active"/>
-                <field name="is_default"/>
+                <field name="category" required="1"/>
+                <field name="maintenance_type_id" required="1"/>
               </group>
               <group>
-                <field name="category"/>
-                <field name="maintenance_type_id"/>
+                <field name="amount_from" required="1"/>
+                <field name="sequence"/>
               </group>
             </group>
 
             <group>
               <group>
-                <field name="amount_from" invisible="is_default"/>
-                <field name="amount_to" invisible="is_default"/>
+                <field name="approver_id" required="1"/>
+              </group>
+              <group>
+                <field name="delegation_id"/>
               </group>
             </group>
 
-            <field name="approval_line_ids">
-              <list editable="bottom">
-                <field name="sequence"/>
-                <field name="approval_role_id" required="1"/>
-                <field name="approver_role" invisible="1"/>
-                <field name="approval_role" invisible="1"/>
-                <field name="is_final_approver" invisible="1"/>
-              </list>
-            </field>
+            <group>
+              <group>
+                <field name="company_id"/>
+                <field name="active"/>
+              </group>
+            </group>
 
             <separator string="Info"/>
             <p class="text-muted">
-              <strong>Auto-naming:</strong> Names are automatically generated based on category, amount range, and maintenance type.<br/>
-            <strong>Default Rule:</strong> When marked as default, falling back when no specific rule matches the SPK criteria.<br/>
-          <strong>Approval Sequence:</strong> Define the sequence of approvers by their roles and order.
+              <strong>Approval Configuration:</strong> Define approvers for specific SPK categories, types, and amount ranges.<br/>
+            <strong>Amount Range:</strong> This config applies to SPKs with total amount &gt;= Starting Amount.<br/>
+          <strong>Delegation:</strong> Optional alternate approver if primary is unavailable.
         </p>
       </sheet>
     </form>
   </field>
 </record>
 
-<record id="spk_approval_matrix_search" model="ir.ui.view">
-  <field name="name">spk.approval.matrix.search</field>
-  <field name="model">spk.approval.matrix</field>
+<record id="spk_approval_config_master_search" model="ir.ui.view">
+  <field name="name">spk.approval.config.master.search</field>
+  <field name="model">spk.approval.config.master</field>
   <field name="arch" type="xml">
     <search>
       <field name="name"/>
       <field name="category"/>
       <field name="maintenance_type_id"/>
+      <field name="approver_id"/>
 
       <separator/>
       <filter name="filter_active" string="Active" domain="[('active', '=', True)]"/>
       <filter name="filter_inactive" string="Inactive" domain="[('active', '=', False)]"/>
-      <filter name="filter_default" string="Default Rules" domain="[('is_default', '=', True)]"/>
 
       <separator/>
       <filter name="group_by_category" string="Category" context="{'group_by': 'category'}"/>
       <filter name="group_by_maintenance_type" string="Maintenance Type" context="{'group_by': 'maintenance_type_id'}"/>
+      <filter name="group_by_state" string="Status" context="{'group_by': 'state'}"/>
     </search>
   </field>
 </record>
 
-<record id="spk_approval_matrix_action" model="ir.actions.act_window">
-  <field name="name">Approval Matrix</field>
+<record id="spk_approval_config_master_action" model="ir.actions.act_window">
+  <field name="name">Approval Configuration</field>
   <field name="type">ir.actions.act_window</field>
-  <field name="res_model">spk.approval.matrix</field>
+  <field name="res_model">spk.approval.config.master</field>
   <field name="view_mode">list,form</field>
   <field name="help" type="html">
     <p class="o_view_nocontent_smiling_face">
-          Create a new Approval Matrix
+          Create a new Approval Configuration
     </p>
     <p>
-          Configure approval workflows by defining which roles approve SPK's based on:<br/>
+          Configure approval rules by defining:<br/>
           - Category (Internal/External)<br/>
           - Maintenance Type<br/>
-          - Amount Range
+          - Starting Amount (amount threshold)<br/>
+          - Approver and optional delegation
 </p>
 </field>
 </record>

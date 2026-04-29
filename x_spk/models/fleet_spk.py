@@ -270,13 +270,13 @@ class FleetSPK(models.Model):
         for record in self:
             record.year = record.vehicle_id.model_year if record.vehicle_id else False
 
-    @api.depends("approval_line_ids.state", "approval_line_ids.role", "approval_line_ids.approver_id", "state")
+    @api.depends("approval_line_ids.state", "state")
     def _compute_next_approver(self):
-        role_order = {"l1": 1, "l2": 2, "l3": 3}
+        """Compute next pending approver"""
         for request in self:
             pending_approvers = request.approval_line_ids.filtered(
-                lambda approver: approver.state == "pending"
-            ).sorted(key=lambda approver: (role_order.get(approver.role, 99), approver.sequence, approver.id))
+                lambda approver: approver.state == "waiting_approval"
+            ).sorted(key=lambda approver: (approver.sequence, approver.id))
 
             next_approver = pending_approvers[:1]
             request.next_approver_id = next_approver.approver_id if next_approver else False
@@ -284,19 +284,21 @@ class FleetSPK(models.Model):
             if request.state == "approved":
                 request.approver_stage = "done"
             elif next_approver:
-                request.approver_stage = next_approver.role
+                # Map sequence to approval level
+                seq_to_level = {1: "l1", 2: "l2", 3: "l3"}
+                request.approver_stage = seq_to_level.get(next_approver.sequence, "l3")
             else:
                 request.approver_stage = "none"
 
-    @api.depends("approval_line_ids.state", "approval_line_ids.role", "approval_line_ids.approver_id", "state")
+    @api.depends("approval_line_ids.state", "state")
     def _compute_current_user_approval(self):
-        role_order = {"l1": 1, "l2": 2, "l3": 3}
+        """Check if current user can approve"""
         current_user = self.env.user
         is_admin = current_user.has_group("base.group_system")
         for request in self:
             next_pending = request.approval_line_ids.filtered(
-                lambda approver: approver.state == "pending"
-            ).sorted(key=lambda approver: (role_order.get(approver.role, 99), approver.sequence, approver.id))[:1]
+                lambda approver: approver.state == "waiting_approval"
+            ).sorted(key=lambda approver: (approver.sequence, approver.id))[:1]
 
             request.current_pending_approval_id = next_pending or False
 
@@ -307,6 +309,7 @@ class FleetSPK(models.Model):
                 request.can_current_user_approve = False
                 request.current_user_approval_id = False
 
+            # Check delegation
             request.can_current_user_delegate = bool(
                 request.state == "waiting_approval"
                 and next_pending
@@ -373,6 +376,10 @@ class FleetSPK(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
+        locked_records = self.filtered(lambda record: record.state in ("approved", "done", "closed"))
+        if locked_records and set(vals) - {"state"}:
+            raise ValidationError("Approved SPK records cannot be edited anymore.")
+
         if "vehicle_id" in vals and vals.get("vehicle_id"):
             vehicle = self.env["fleet.vehicle"].browse(vals["vehicle_id"])
             vals.setdefault("odometer", vehicle.odometer)
@@ -466,9 +473,7 @@ class FleetSPK(models.Model):
                     lambda x: not x.old_production_number or not x.new_production_number
                 )
                 if unfilled:
-                    raise ValidationError(
-                        "All tyre old/new production numbers must be filled before submission"
-                    )
+                    return record.action_open_tyre_aki_wizard()
 
             aki_required = record.sparepart_line_ids.filtered(
                 lambda x: x.product_id.is_aki
@@ -478,9 +483,7 @@ class FleetSPK(models.Model):
                     lambda x: not x.old_AKI_code or not x.new_AKI_code
                 )
                 if unfilled:
-                    raise ValidationError(
-                        "All AKI old/new codes must be filled before submission"
-                    )
+                    return record.action_open_tyre_aki_wizard()
 
             record._generate_approval_lines()
             record.state = "waiting_approval"
@@ -537,89 +540,55 @@ class FleetSPK(models.Model):
         self.state = "closed"
 
     def _generate_approval_lines(self):
-        """Auto-generate approval lines from active matrix based on SPK context.
-        
-        Tries to match specific matrix (category + maintenance_type + amount range).
-        Falls back to default rule if no specific match found.
-        """
+        """Generate approval lines based on SPK config and total amount."""
         self.ensure_one()
 
-        # Cancel previous pending approvals if record is re-submitted
-        old_pending = self.approval_line_ids.filtered(lambda x: x.state == "pending")
+        # Cancel previous pending approvals
+        old_pending = self.approval_line_ids.filtered(lambda x: x.state == "waiting_approval")
         if old_pending:
-            old_pending.with_context(skip_approval_write_check=True).write(
-                {
-                    "state": "cancelled",
-                    "action_date": fields.Datetime.now(),
-                }
-            )
-
-        # First, try to find specific matrix matching category, type, and amount
-        matrix = self.env["spk.approval.matrix"].search(
-            [
-                ("active", "=", True),
-                ("is_default", "=", False),
-                ("category", "=", self.category),
-                ("maintenance_type_id", "=", self.maintenance_type_id.id),
-                ("amount_from", "<=", self.total_amount),
-                ("amount_to", ">=", self.total_amount),
-            ],
-            order="id desc",
-            limit=1,
-        )
-
-        # If no specific match, try default rule for this category
-        if not matrix:
-            matrix = self.env["spk.approval.matrix"].search(
-                [
-                    ("active", "=", True),
-                    ("is_default", "=", True),
-                    ("category", "=", self.category),
-                ],
-                limit=1,
-            )
+            old_pending.with_context(skip_approval_write_check=True).unlink()
 
         approval_vals = []
-        next_cycle = (max(self.approval_line_ids.mapped("approval_cycle")) if self.approval_line_ids else 0) + 1
-        
-        if matrix:
-            for line in matrix.approval_line_ids.sorted(key=lambda l: l.sequence):
-                # Get approver from role mapping
-                approver = line.approval_role_id.user_id if line.approval_role_id else None
-                
-                if not approver or not approver.active or approver.share or approver.login == "admin":
-                    # Fallback to first active internal user if role mapping not available
-                    approver = self._get_default_approver_user()
-                
-                if not approver:
-                    raise ValidationError(
-                        "No active approver found for role '%s' and no fallback user is available."
-                        % (line.approval_role_id.display_name if line.approval_role_id else "Unknown")
-                    )
-                
-                # Derive approval role from sequence for backward compatibility
-                role_map = {1: "l1", 2: "l2", 3: "l3"}
-                approval_role = role_map.get(line.approval_role_id.sequence, "l1")
-                
-                approval_vals.append(
-                    (
-                        0,
-                        0,
-                        {
-                            "sequence": line.sequence,
-                            "approver_id": approver.id,
-                            "role": approval_role,
-                            "state": "pending",
-                            "approval_cycle": next_cycle,
-                        },
-                    )
-                )
 
-        if not approval_vals:
-            # Fallback to current user if no matrix found
-            default_approver = self.env.user
-            if not default_approver.active or default_approver.share or default_approver.login == "admin":
-                default_approver = self.env["res.users"].search(
+        # Find approval config for this SPK category and type
+        approval_configs = self.env["spk.approval.config.master"].search(
+            [
+                ("category", "=", self.category),
+                ("maintenance_type_id", "=", self.maintenance_type_id.id),
+                ("state", "=", "active"),
+                ("active", "=", True),
+                ("company_id", "=", self.company_id.id),
+            ],
+            order="amount_from asc",
+        )
+
+        # Find applicable config based on amount
+        applicable_config = None
+        for config in approval_configs:
+            if self.total_amount >= config.amount_from:
+                applicable_config = config
+            else:
+                break
+
+        sequence = 1
+        if applicable_config:
+            # Add primary approver
+            approval_vals.append(
+                (
+                    0,
+                    0,
+                    {
+                        "sequence": sequence,
+                        "approver_id": applicable_config.approver_id.id,
+                        "delegation_id": applicable_config.delegation_id.id if applicable_config.delegation_id else False,
+                        "state": "waiting_approval",
+                    },
+                )
+            )
+        else:
+            # Fallback to current user
+            if not self.env.user.active or self.env.user.share:
+                fallback_user = self.env["res.users"].search(
                     [
                         ("active", "=", True),
                         ("share", "=", False),
@@ -628,25 +597,25 @@ class FleetSPK(models.Model):
                     order="id asc",
                     limit=1,
                 )
+            else:
+                fallback_user = self.env.user
 
-            if not default_approver:
+            if not fallback_user:
                 raise ValidationError(
-                    "No default approver available. Please configure approval matrix or activate at least one internal user."
+                    "Unable to find any suitable approver. Please configure approval rules or activate at least one system user."
                 )
 
-            approval_vals = [
+            approval_vals.append(
                 (
                     0,
                     0,
                     {
                         "sequence": 1,
-                        "approver_id": default_approver.id,
-                        "role": "l1",
-                        "state": "pending",
-                        "approval_cycle": next_cycle,
+                        "approver_id": fallback_user.id,
+                        "state": "waiting_approval",
                     },
                 )
-            ]
+            )
 
         self.write({"approval_line_ids": approval_vals})
 

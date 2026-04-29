@@ -19,89 +19,58 @@ class SPKApprovalLine(models.Model):
         string="Approver",
         required=True,
     )
-    role = fields.Selection(
-        [
-            ("l1", "Manager"),
-            ("l2", "Senior Manager"),
-            ("l3", "Director"),
-        ],
-        string="Role",
-        required=True,
-        default="l1",
+    delegation_id = fields.Many2one(
+        "res.users",
+        string="Delegation",
+        help="Optional delegation approver if primary approver is unavailable",
     )
     state = fields.Selection(
         [
-            ("pending", "Pending"),
+            ("waiting_approval", "Waiting Approval"),
             ("approved", "Approved"),
             ("rejected", "Rejected"),
-            ("cancelled", "Cancelled"),
         ],
-        string="Approval Status",
-        default="pending",
+        string="Status",
+        default="waiting_approval",
     )
-    action_date = fields.Datetime(string="Action Date")
+    actual_approver_id = fields.Many2one(
+        "res.users",
+        string="Actual Approver",
+        readonly=True,
+        help="User who actually performed the approval",
+    )
+    reject_by_id = fields.Many2one(
+        "res.users",
+        string="Rejected By",
+        readonly=True,
+    )
+    date_approved = fields.Datetime(string="Date Approved", readonly=True)
+    date_rejected = fields.Datetime(string="Date Rejected", readonly=True)
     remarks = fields.Text(string="Remarks")
     attachment_ids = fields.Many2many(
         "ir.attachment",
         string="Attachments",
     )
-    approval_cycle = fields.Integer(
-        string="Approval Cycle",
-        default=1,
-        required=True,
-        readonly=True,
-        help="Deprecated field - kept for backward compatibility"
-    )
-    can_current_user_delegate = fields.Boolean(
-        string="Can Current User Delegate",
-        compute="_compute_can_current_user_delegate",
-    )
 
-    # Backward-compatible aliases (deprecated)
-    approval_status = fields.Selection(
-        related="state",
-        string="Approval Status (Legacy)",
-        store=True,
-        readonly=True,
-        help="Deprecated - use 'state' instead"
-    )
-    approval_date = fields.Datetime(
-        related="action_date",
-        string="Approval Date (Legacy)",
-        store=True,
-        readonly=True,
-        help="Deprecated - use 'action_date' instead"
-    )
-    comments = fields.Text(
-        related="remarks",
-        string="Comments (Legacy)",
-        readonly=True,
-        help="Deprecated - use 'remarks' instead"
-    )
 
-    @api.depends("state", "approver_id")
-    def _compute_can_current_user_delegate(self):
-        current_user = self.env.user
-        is_admin = current_user.has_group("base.group_system")
+    def _check_parent_editable(self):
         for approval in self:
-            approval.can_current_user_delegate = bool(
-                approval.state == "pending"
-                and (approval.approver_id == current_user or is_admin)
-            )
+            if approval.spk_id and approval.spk_id.state in ('approved', 'done', 'closed'):
+                raise ValidationError('Approved SPK records cannot be edited anymore.')
 
     def _check_assigned_approver(self):
         for approval in self:
             if approval.approver_id != self.env.user and not self.env.su:
                 raise ValidationError(
-                    "Only assigned approver can process this approval stage."
+                    "Only assigned approver can process this approval."
                 )
 
     def write(self, vals):
+        self._check_parent_editable()
         protected_fields = {
             "state",
-            "action_date",
+            "date_approved",
             "approver_id",
-            "role",
             "remarks",
             "attachment_ids",
         }
@@ -113,7 +82,53 @@ class SPKApprovalLine(models.Model):
             self._check_assigned_approver()
         return super().write(vals)
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            spk_id = vals.get('spk_id')
+            if spk_id:
+                spk = self.env['fleet.spk'].browse(spk_id)
+                if spk.state in ('approved', 'done', 'closed'):
+                    raise ValidationError('Approved SPK records cannot be edited anymore.')
+        return super().create(vals_list)
+
+    def unlink(self):
+        self._check_parent_editable()
+        return super().unlink()
+
+    def action_approve(self):
+        """Mark this approval line as approved."""
+        for approval in self:
+            approval._check_assigned_approver()
+            approval.write({
+                'state': 'approved',
+                'actual_approver_id': self.env.user.id,
+                'date_approved': fields.Datetime.now(),
+            })
+            approval.spk_id._compute_next_approver()
+            approval.spk_id._send_next_approver_notification()
+
+    def action_reject(self):
+        """Reject this approval line."""
+        for approval in self:
+            approval._check_assigned_approver()
+            approval.write({
+                'state': 'rejected',
+                'reject_by_id': self.env.user.id,
+                'date_rejected': fields.Datetime.now(),
+            })
+            approval.spk_id.write({'state': 'rejected'})
+
+    def action_open_approve_wizard(self):
+        self.ensure_one()
+        return self._open_action_wizard("approve")
+
+    def action_open_reject_wizard(self):
+        self.ensure_one()
+        return self._open_action_wizard("reject")
+
     def _open_action_wizard(self, action_type):
+        """Open approval action wizard"""
         self.ensure_one()
         self._check_assigned_approver()
         return {
@@ -128,84 +143,3 @@ class SPKApprovalLine(models.Model):
                 "default_action_type": action_type,
             },
         }
-
-    def action_open_approve_wizard(self):
-        self.ensure_one()
-        return self._open_action_wizard("approve")
-
-    def action_open_reject_wizard(self):
-        self.ensure_one()
-        return self._open_action_wizard("reject")
-
-    def action_approve(self):
-        role_order = {"l1": 1, "l2": 2, "l3": 3}
-        for approval in self:
-            request = approval.spk_id
-            if not request:
-                continue
-
-            approval._check_assigned_approver()
-
-            pending_approvals = request.approval_line_ids.filtered(
-                lambda item: item.state == "pending"
-            ).sorted(key=lambda item: (role_order.get(item.role, 99), item.sequence, item.id))
-            current_step = pending_approvals[:1]
-            if current_step and current_step != approval:
-                raise ValidationError(
-                    "Current approver stage is assigned to %s."
-                    % current_step.approver_id.display_name
-                )
-
-            approval.sudo().with_context(skip_approval_write_check=True).write(
-                {
-                    "state": "approved",
-                    "action_date": fields.Datetime.now(),
-                }
-            )
-
-            remaining_pending = request.approval_line_ids.filtered(
-                lambda item: item.state == "pending"
-            )
-            if remaining_pending:
-                request.state = "waiting_approval"
-                request._send_next_approver_notification(is_reminder=False)
-            else:
-                request.state = "approved"
-                request._post_approval_actions()
-
-    def action_reject(self):
-        role_order = {"l1": 1, "l2": 2, "l3": 3}
-        for approval in self:
-            request = approval.spk_id
-            if not request:
-                continue
-
-            approval._check_assigned_approver()
-
-            approval.sudo().with_context(skip_approval_write_check=True).write(
-                {
-                    "state": "rejected",
-                    "action_date": fields.Datetime.now(),
-                }
-            )
-
-            current_rank = role_order.get(approval.role, 0)
-            upper_pending = request.approval_line_ids.filtered(
-                lambda item: item.state == "pending"
-                and (
-                    role_order.get(item.role, 0) > current_rank
-                    or (
-                        role_order.get(item.role, 0) == current_rank
-                        and item.sequence > approval.sequence
-                    )
-                )
-            )
-            if upper_pending:
-                upper_pending.sudo().with_context(skip_approval_write_check=True).write(
-                    {
-                        "state": "cancelled",
-                        "action_date": fields.Datetime.now(),
-                    }
-                )
-
-            request.state = "draft"
