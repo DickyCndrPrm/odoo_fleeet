@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data>
+    <!-- SPK Approval Line Form View -->
+    <record id="spk_approval_line_form" model="ir.ui.view">
+      <field name="name">spk.approval.line.form</field>
+      <field name="model">spk.approval.line</field>
+      <field name="arch" type="xml">
+        <form>
+          <header>
+            <button name="action_approve" string="Approve" type="object" class="btn-success" states="waiting_approval"/>
+            <button name="action_reject" string="Reject" type="object" class="btn-danger" states="waiting_approval"/>
+            <button name="action_delegate" string="Delegate" type="object" class="btn-warning" states="waiting_approval" invisible="not delegation_id"/>
+            <field name="state" widget="statusbar" statusbar_visible="waiting_approval,approved,rejected"/>
+          </header>
+          <sheet>
+            <group>
+              <field name="spk_id"/>
+              <field name="sequence"/>
+              <field name="approver_id"/>
+              <field name="delegation_id" readonly="state != 'waiting_approval'"/>
+            </group>
+            <group>
+              <field name="state"/>
+              <field name="actual_approver_id" readonly="1"/>
+              <field name="date_approved" readonly="1"/>
+              <field name="reject_by_id" readonly="1"/>
+              <field name="date_rejected" readonly="1"/>
+            </group>
+            <field name="remarks"/>
+            <field name="attachment_ids" widget="many2many_binary" string="Attachments"/>
+          </sheet>
+        </form>
+      </field>
+    </record>
+
+    <!-- SPK Approval Line Tree View -->
+    <record id="spk_approval_line_tree" model="ir.ui.view">
+      <field name="name">spk.approval.line.tree</field>
+      <field name="model">spk.approval.line</field>
+      <field name="arch" type="xml">
+        <tree>
+          <field name="spk_id"/>
+          <field name="sequence"/>
+          <field name="approver_id"/>
+          <field name="delegation_id"/>
+          <field name="state"/>
+          <field name="date_approved"/>
+          <field name="date_rejected"/>
+        </tree>
+      </field>
+    </record>
+
+    <!-- SPK Approval Line Search View -->
+    <record id="spk_approval_line_search" model="ir.ui.view">
+      <field name="name">spk.approval.line.search</field>
+      <field name="model">spk.approval.line</field>
+      <field name="arch" type="xml">
+        <search string="Approval Line">
+          <field name="spk_id"/>
+          <field name="approver_id"/>
+          <separator/>
+          <filter name="waiting_approval" string="Waiting Approval" domain="[('state', '=', 'waiting_approval')]"/>
+          <filter name="approved" string="Approved" domain="[('state', '=', 'approved')]"/>
+          <filter name="rejected" string="Rejected" domain="[('state', '=', 'rejected')]"/>
+          <separator/>
+          <filter name="assigned_to_me" string="Assigned to Me" domain="[('approver_id', '=', uid)]"/>
+          <filter name="delegated_to_me" string="Delegated to Me" domain="[('delegation_id', '=', uid)]"/>
+          <separator/>
+          <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+          <filter name="group_approver" string="Approver" context="{'group_by': 'approver_id'}"/>
+        </search>
+      </field>
+    </record>
+
+    <!-- SPK Approval Line Action -->
+    <record id="spk_approval_line_action" model="ir.actions.act_window">
+      <field name="name">SPK Approval Lines</field>
+      <field name="type">ir.actions.act_window</field>
+      <field name="res_model">spk.approval.line</field>
+      <field name="view_mode">tree,form</field>
+    </record>
+  </data>
+</odoo>

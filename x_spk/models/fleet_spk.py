@@ -117,6 +117,12 @@ class FleetSPK(models.Model):
     customer_id = fields.Many2one('res.partner', string='Customer')
     pic_client = fields.Char(string='PIC Client', help='Free text field for PIC (Person In Charge) Client name')
     currency_id = fields.Many2one('res.currency', string='Currency', default=lambda self: self.env.company.currency_id)
+    company_id = fields.Many2one(
+        'res.company',
+        string='Company',
+        default=lambda self: self.env.company,
+        index=True,
+    )
 
     # === Vehicle Details (from vehicle_id) ===
     spk_date = fields.Date(
@@ -377,7 +383,17 @@ class FleetSPK(models.Model):
 
     def write(self, vals):
         locked_records = self.filtered(lambda record: record.state in ("approved", "done", "closed"))
-        if locked_records and set(vals) - {"state"}:
+        # Allow write for approval-related and computed fields even when locked
+        approval_related_fields = {
+            "state",
+            "approval_line_ids",
+            "next_approver_id",
+            "approver_stage",
+            "current_user_approval_id",
+            "current_pending_approval_id",
+        }
+        editable_fields = set(vals.keys())
+        if locked_records and editable_fields - approval_related_fields:
             raise ValidationError("Approved SPK records cannot be edited anymore.")
 
         if "vehicle_id" in vals and vals.get("vehicle_id"):
@@ -562,60 +578,40 @@ class FleetSPK(models.Model):
             order="amount_from asc",
         )
 
-        # Find applicable config based on amount
-        applicable_config = None
-        for config in approval_configs:
-            if self.total_amount >= config.amount_from:
-                applicable_config = config
-            else:
-                break
+        # Find all applicable configs based on amount (multi-level approval)
+        applicable_configs = approval_configs.filtered(
+            lambda config: self.total_amount >= config.amount_from
+        )
 
-        sequence = 1
-        if applicable_config:
-            # Add primary approver
-            approval_vals.append(
-                (
-                    0,
-                    0,
-                    {
-                        "sequence": sequence,
-                        "approver_id": applicable_config.approver_id.id,
-                        "delegation_id": applicable_config.delegation_id.id if applicable_config.delegation_id else False,
-                        "state": "waiting_approval",
-                    },
-                )
-            )
+        # Create approval lines for all applicable configs in sequence order
+        if applicable_configs:
+            # Sort by sequence to maintain approval order
+            applicable_configs = sorted(applicable_configs, key=lambda c: (c.sequence, c.id))
+            for idx, config in enumerate(applicable_configs, start=1):
+                approval_vals.append((0, 0, {
+                    "sequence": idx,
+                    "approver_id": config.approver_id.id,
+                    "delegation_id": config.delegation_id.id if config.delegation_id else False,
+                    "state": "waiting_approval",
+                }))
         else:
-            # Fallback to current user
-            if not self.env.user.active or self.env.user.share:
-                fallback_user = self.env["res.users"].search(
-                    [
-                        ("active", "=", True),
-                        ("share", "=", False),
-                        ("login", "!=", "admin"),
-                    ],
-                    order="id asc",
-                    limit=1,
-                )
-            else:
-                fallback_user = self.env.user
-
-            if not fallback_user:
-                raise ValidationError(
-                    "Unable to find any suitable approver. Please configure approval rules or activate at least one system user."
-                )
-
-            approval_vals.append(
-                (
-                    0,
-                    0,
-                    {
-                        "sequence": 1,
-                        "approver_id": fallback_user.id,
-                        "state": "waiting_approval",
-                    },
-                )
+            # Fallback to default approval config per company
+            default_config = self.env["spk.approval.default.config"].search(
+                [("company_id", "=", self.company_id.id), ("active", "=", True)],
+                limit=1,
             )
+            if default_config and default_config.default_approver_id:
+                approval_vals.append((0, 0, {
+                    "sequence": 1,
+                    "approver_id": default_config.default_approver_id.id,
+                    "delegation_id": default_config.delegation_id.id if default_config.delegation_id else False,
+                    "state": "waiting_approval",
+                }))
+            else:
+                raise ValidationError(
+                    "No approval configuration found for this SPK and no default approver configured for the company. "
+                    "Please configure approval rules or set a default approver in company settings."
+                )
 
         self.write({"approval_line_ids": approval_vals})
 

@@ -10,5 +10,6 @@ from . import spk_aki_line
 from . import spk_on_risk_product
 from . import spk_approval_line
 from . import spk_approval_matrix
+from . import spk_approval_default_config
 from . import spk_approval_action_wizard
 from . import spk_tyre_aki_wizard

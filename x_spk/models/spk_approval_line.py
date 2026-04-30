@@ -54,15 +54,23 @@ class SPKApprovalLine(models.Model):
 
 
     def _check_parent_editable(self):
+        if self._context.get('skip_parent_editable_check'):
+            return
         for approval in self:
+            # Allow write if this approval is transitioning to approved/rejected (being processed)
+            if approval.state == 'waiting_approval':
+                return
             if approval.spk_id and approval.spk_id.state in ('approved', 'done', 'closed'):
                 raise ValidationError('Approved SPK records cannot be edited anymore.')
 
     def _check_assigned_approver(self):
         for approval in self:
-            if approval.approver_id != self.env.user and not self.env.su:
+            # Check if current user is either assigned approver or is the delegation
+            is_primary = approval.approver_id == self.env.user
+            is_delegation = approval.delegation_id and approval.delegation_id == self.env.user
+            if not (is_primary or is_delegation) and not self.env.su:
                 raise ValidationError(
-                    "Only assigned approver can process this approval."
+                    "Only assigned approver or delegation can process this approval."
                 )
 
     def write(self, vals):
@@ -100,24 +108,62 @@ class SPKApprovalLine(models.Model):
         """Mark this approval line as approved."""
         for approval in self:
             approval._check_assigned_approver()
-            approval.write({
+
+            # Check if this is the last pending approval (excluding current)
+            spk = approval.spk_id
+            is_last_approval = not self.env['spk.approval.line'].search_count([
+                ('spk_id', '=', spk.id),
+                ('state', '=', 'waiting_approval'),
+                ('id', '!=', approval.id),
+            ])
+
+            # If this is the last approval, mark SPK as approved first
+            if is_last_approval:
+                spk.sudo().write({'state': 'approved'})
+
+            # Write approval line as approved using sudo to bypass parent editable check
+            approval.sudo().with_context(skip_parent_editable_check=True).write({
                 'state': 'approved',
                 'actual_approver_id': self.env.user.id,
                 'date_approved': fields.Datetime.now(),
             })
-            approval.spk_id._compute_next_approver()
-            approval.spk_id._send_next_approver_notification()
+
+            # Handle post-approval logic
+            if is_last_approval:
+                spk._compute_next_approver()
+                spk._post_approval_actions()
+            else:
+                spk._compute_next_approver()
+                spk._send_next_approver_notification()
 
     def action_reject(self):
         """Reject this approval line."""
         for approval in self:
             approval._check_assigned_approver()
-            approval.write({
+            approval.sudo().with_context(skip_parent_editable_check=True).write({
                 'state': 'rejected',
                 'reject_by_id': self.env.user.id,
                 'date_rejected': fields.Datetime.now(),
             })
-            approval.spk_id.write({'state': 'rejected'})
+            approval.spk_id.sudo().write({'state': 'rejected'})
+
+    def action_delegate(self):
+        """Delegate approval to the delegation user."""
+        for approval in self:
+            if not approval.delegation_id:
+                raise ValidationError("No delegation user set for this approval.")
+            
+            if approval.approver_id != self.env.user and not self.env.su:
+                raise ValidationError("Only the primary approver can delegate.")
+            
+            # Reassign approval to delegation user
+            approval.sudo().with_context(skip_parent_editable_check=True).write({
+                'approver_id': approval.delegation_id.id,
+                'delegation_id': False,  # Clear delegation after reassigning
+            })
+            
+            # Send notification to new approver
+            approval.spk_id._send_next_approver_notification(is_reminder=False)
 
     def action_open_approve_wizard(self):
         self.ensure_one()

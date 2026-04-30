@@ -9,8 +9,10 @@
 
     <menuitem id="spk_menu_spk" name="SPK" action="fleet_spk_action" parent="spk_menu_operations" sequence="1"/>
 
+    <menuitem id="spk_menu_approval_line" name="Approval Lines" action="spk_approval_line_action" parent="spk_menu_operations" sequence="2"/>
+
     <!-- Vehicle Menu under SPK -->
-    <menuitem id="spk_menu_fleet" name="Fleet" parent="spk_menu_operations" sequence="2"/>
+    <menuitem id="spk_menu_fleet" name="Fleet" parent="spk_menu_operations" sequence="3"/>
 
     <menuitem id="spk_menu_vehicle" name="Vehicles" action="fleet.fleet_vehicle_action" parent="spk_menu_fleet" sequence="1"/>
 
@@ -19,8 +21,10 @@
 
     <menuitem id="spk_menu_approval_config" name="Approval Configuration" action="spk_approval_config_master_action" parent="spk_menu_master" sequence="1"/>
 
-    <menuitem id="spk_menu_product_template" name="Product Template" action="product.product_template_action" parent="spk_menu_master" sequence="2"/>
-    <menuitem id="spk_menu_execution_type" name="Execution Type" action="spk_execution_type_action" parent="spk_menu_master" sequence="3"/>
-    <menuitem id="spk_menu_maintenance_type" name="Maintenance Type" action="spk_maintenance_type_action" parent="spk_menu_master" sequence="4"/>
+    <menuitem id="spk_menu_approval_default_config" name="Default Approval" action="spk_approval_default_config_action" parent="spk_menu_master" sequence="2"/>
+
+    <menuitem id="spk_menu_product_template" name="Product Template" action="product.product_template_action" parent="spk_menu_master" sequence="3"/>
+    <menuitem id="spk_menu_execution_type" name="Execution Type" action="spk_execution_type_action" parent="spk_menu_master" sequence="4"/>
+    <menuitem id="spk_menu_maintenance_type" name="Maintenance Type" action="spk_maintenance_type_action" parent="spk_menu_master" sequence="5"/>
   </data>
 </odoo>

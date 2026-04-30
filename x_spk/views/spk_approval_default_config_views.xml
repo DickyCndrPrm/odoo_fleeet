@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data>
+    <!-- SPK Default Approval Configuration Form View -->
+    <record id="spk_approval_default_config_form" model="ir.ui.view">
+      <field name="name">spk.approval.default.config.form</field>
+      <field name="model">spk.approval.default.config</field>
+      <field name="arch" type="xml">
+        <form>
+          <sheet>
+            <group>
+              <field name="company_id" readonly="1"/>
+              <field name="active" widget="boolean_toggle"/>
+            </group>
+            <group>
+              <field name="default_approver_id" required="1"/>
+              <field name="delegation_id"/>
+            </group>
+            <field name="description" placeholder="Internal notes..."/>
+          </sheet>
+        </form>
+      </field>
+    </record>
+
+    <!-- SPK Default Approval Configuration Tree View -->
+    <record id="spk_approval_default_config_tree" model="ir.ui.view">
+      <field name="name">spk.approval.default.config.tree</field>
+      <field name="model">spk.approval.default.config</field>
+      <field name="arch" type="xml">
+        <tree>
+          <field name="company_id"/>
+          <field name="default_approver_id"/>
+          <field name="delegation_id"/>
+          <field name="active"/>
+        </tree>
+      </field>
+    </record>
+
+    <!-- SPK Default Approval Configuration Search View -->
+    <record id="spk_approval_default_config_search" model="ir.ui.view">
+      <field name="name">spk.approval.default.config.search</field>
+      <field name="model">spk.approval.default.config</field>
+      <field name="arch" type="xml">
+        <search string="Default Approval Configuration">
+          <field name="company_id"/>
+          <field name="default_approver_id"/>
+          <separator/>
+          <filter name="active" string="Active" domain="[('active', '=', True)]"/>
+          <filter name="inactive" string="Inactive" domain="[('active', '=', False)]"/>
+        </search>
+      </field>
+    </record>
+
+    <!-- SPK Default Approval Configuration Action -->
+    <record id="spk_approval_default_config_action" model="ir.actions.act_window">
+      <field name="name">Default Approval Configuration</field>
+      <field name="type">ir.actions.act_window</field>
+      <field name="res_model">spk.approval.default.config</field>
+      <field name="view_mode">tree,form</field>
+      <field name="help" type="html">
+        <p class="o_view_nocontent_smiling_face">
+          Configure default approver for each company when no specific approval rule matches.
+        </p>
+      </field>
+    </record>
+  </data>
+</odoo>
